@@ -1,133 +1,113 @@
 import psycopg2
 
 # Создаем базу данных
-def create_tables():
-    with psycopg2.connect(database='clients', user='postgres', password='120498') as conn: # Подключение к бд
-        with conn.cursor() as cur: # Создаем курсор
-            cur.execute(f"CREATE TABLE IF NOT EXISTS clients ( "
-                        f"client_id SERIAL PRIMARY KEY, "
-                        f"name VARCHAR(15) NOT NULL, "
-                        f"surname VARCHAR(15) NOT NULL, "
-                        f"email VARCHAR(25) UNIQUE);"
-                        f"CREATE TABLE IF NOT EXISTS phone_numbers ( "
-                        f"phone_number_id SERIAL PRIMARY KEY, "
-                        f"client_id INTEGER REFERENCES clients(client_id), "
-                        f"phone_number VARCHAR(15) NOT NULL);")
+conn = psycopg2.connect(database='clients', user='postgres', password='120498')  # Подключение к бд
+with conn.cursor() as cur:  # Создаем курсор
+    def create_tables(conn):
+            cur.execute("""CREATE TABLE IF NOT EXISTS clients (
+                        client_id SERIAL PRIMARY KEY,
+                        name VARCHAR(15) NOT NULL, 
+                        surname VARCHAR(15) NOT NULL, 
+                        email VARCHAR(25) UNIQUE);
+                        CREATE TABLE IF NOT EXISTS phone_numbers (
+                        phone_number_id SERIAL PRIMARY KEY,
+                        client_id INTEGER REFERENCES clients(client_id), 
+                        phone_number VARCHAR(15) NOT NULL);""")
             conn.commit()
             print('Таблицы в базе созданы.')
-    conn.close() # Закрываем подключение
     print()
 
 
-def add_new_client(): # Добавление клиента
-    print('*** добавить нового клиента ***')
-    name = input('Введите имя: ')
-    surname = input('Введите фамилию: ')
-    email = input('Введите e-mail: ')
-    phone_number = input('Введите телефон: ')
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"INSERT INTO clients (name, surname, email) "
-                        f"VALUES ('{name}','{surname}','{email}'); "
-                        f"SELECT * FROM clients;")
+def add_new_client(conn, name, surname, email, phone_number): # Добавление клиента
+            cur.execute("""INSERT INTO clients (name, surname, email) 
+                        VALUES ('{name}','{surname}','{email}'); 
+                        SELECT * FROM clients;""")
             client_id = cur.fetchall()[-1][0]
-            if phone_number != '':
-                cur.execute(f"INSERT INTO phone_numbers (client_id, phone_number) "
-                            f"VALUES ({client_id}, '{phone_number}');")
+            if phone_number:
+                cur.execute("""INSERT INTO phone_numbers (client_id, phone_number) 
+                            VALUES ({client_id}, '{phone_number}');""")
                 conn.commit()
                 print(f'Новый клиент добавлен!')
-    conn.close()
-    print()
+            print()
 
-def add_phone_number(): # Добавляем номер телефона
-    print('*** добавить телефон для существующего клиента ***')
-    client_id = input('Введите id клиента: ')
-    new_phone_number = input('Введите дополнительный телефон: ')
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"INSERT INTO phone_numbers (client_id, phone_number)"
-                        f"VALUES ({client_id},'{new_phone_number}');")
+def add_phone_number(conn, client_id, phone_number): # Добавляем номер телефона
+            cur.execute("""INSERT INTO phone_numbers (client_id, phone_number)
+                        VALUES ({client_id},'{phone_number}');""")
             conn.commit()
             print(f'Дополнительный телефон добавлен')
-    conn.close()
-    print()
+            print()
 
-def update_client_info(): # Меняем данные клиента
-    print('*** изменить данные о клиенте ***')
-    client_id = input('Введите id клиента: ')
-    new_name = input('Введите новое [Имя]: ')
-    new_surname = input('Введите новую [Фамилию]: ')
-    new_email = input('Введите новую [Почту]: ')
-    updates_str = ''
-    if new_name != '':
-        updates_str += f"name='{new_name}'"
-    if new_surname != '':
-        updates_str += f", surname='{new_surname}'"
-    if new_email != '':
-        updates_str += f", email='{new_email}'"
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE clients SET {updates_str} WHERE client_id={client_id};")
+def update_client_info(conn, client_id, name=None, surname=None, email=None, phone_number=None): # Меняем данные клиента
+        if name:
+            print("Меняем имя")
+            cur.execute("""
+                    UPDATE client set name = %s  Where id = %s ;
+                    """, (name, client_id))
+        if surname:
+            print("Меняем фамилию")
+            cur.execute("""
+                    UPDATE client.users set last_name = %s  Where id = %s ;
+                    """, (surname, client_id))
+        if email:
+            print("Меняем почту")
+            cur.execute("""
+                    UPDATE client.users set email = %s  Where id = %s ;
+                    """, (email, client_id))
+        conn.commit()
+        if phone_number:
+            cur.execute("""
+                    SELECT id, phone FROM client.phone WHERE user_id=%s;
+                    """, (client_id,))
+            for phone_number in cur.fetchall():
+                print('Телефоны пользователя:', phone_number)
+            id_phone = input('Укажите id номера телефона, который нужно поменять:')
+            cur.execute("""
+                    UPDATE client.phone set phone = %s  Where user_id = %s and id = %s;
+                    """, (phone_number, client_id, id_phone))
             conn.commit()
-            print('Данные изменены')
-    conn.close()
-    print()
+        return print("Данные успешно поменяны")
 
-def del_phone_number(): # Удаляем телефон клиента
-    print('*** удалить телефон для существующего клиента ***')
-    client_id = input('Введите id клиента: ')
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"SELECT * FROM clients WHERE client_id={client_id};")
+def del_phone_number(conn): # Удаляем телефон клиента
+            cur.execute("""SELECT * FROM clients WHERE client_id={client_id};""")
             client_info = cur.fetchone()
             print(f'Клиент {client_info[1]} {client_info[2]}')
             print('Номера телефонов:')
-            cur.execute(f"SELECT * FROM phone_numbers WHERE client_id={client_id};")
+            cur.execute("""SELECT * FROM phone_numbers WHERE client_id={client_id};""")
             client_phones = cur.fetchall()
             print('id'.center(5) + '-' + 'Номер телефона'.center(16))
             for client_phone in client_phones:
                 print(str(client_phone[0]).center(5) + '-' + client_phone[2].center(16))
             phone_number_id = input('Введите id удаляемого номера: ')
-            cur.execute(f"DELETE FROM phone_numbers WHERE phone_number_id={phone_number_id};")
+            cur.execute("""DELETE FROM phone_numbers WHERE phone_number_id={phone_number_id};""")
             conn.commit()
             print('Номер телефона удален')
-    conn.close()
-    print()
 
-def del_client(): # Удаляем клиента из базы
-    print('*** удалить существующего клиента ***')
-    client_id = input('Введите id клиента: ')
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"DELETE FROM phone_numbers WHERE client_id={client_id};"
-                        f"DELETE FROM clients WHERE client_id={client_id};")
+
+def del_client(conn): # Удаляем клиента из базы
+            cur.execute("""DELETE FROM phone_numbers WHERE client_id={client_id};
+                        DELETE FROM clients WHERE client_id={client_id};""")
             conn.commit()
             print('Клиент удален из базы')
-    conn.close()
-    print()
+            print()
 
-def find_client(): # Находим клиента в базе
+def find_client(conn, name=None, surname=None, email=None, phone_number=None): # Находим клиента в базе
     print('*** найти клиента по его данным (имени, фамилии, email-у или телефону) ***')
     key = input('Введите данные для поиска: ')
-    with psycopg2.connect(database='clients', user='postgres', password='200182') as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"SELECT DISTINCT clients.client_id, name, surname, email, phone_number "
-                        f"FROM clients "
-                        f"JOIN phone_numbers "
-                        f"ON clients.client_id = phone_numbers.client_id "
-                        f"WHERE name LIKE '%{key}%' OR surname LIKE '%{key}%' OR email LIKE '%{key}%' "
-                        f"OR phone_number LIKE '%{key}%';")
-            clients_info = cur.fetchall()
-            print(clients_info)
-            print('id'.center(5) + 'Имя'.center(15) + 'Фамилия'.center(15) +
+    cur.execute("""SELECT DISTINCT clients.client_id, name, surname, email, phone_number
+                        FROM clients
+                        JOIN phone_numbers
+                        ON clients.client_id = phone_numbers.client_id 
+                        WHERE name LIKE '%{key}%' OR surname LIKE '%{key}%' OR email LIKE '%{key}%' 
+                        OR phone_number LIKE '%{key}%';""")
+    clients_info = cur.fetchall()
+    print(clients_info)
+    print('id'.center(5) + 'Имя'.center(15) + 'Фамилия'.center(15) +
                   'e-mail'.center(25) + 'Номер телефона'.center(16))
-            print('-' * 82)
-            for client in clients_info:
-                print(str(client[0]).center(5) + client[1].center(15) +
+    print('-' * 82)
+    for client in clients_info:
+            print(str(client[0]).center(5) + client[1].center(15) +
                       client[2].center(15) + client[3].center(25) + client[4].center(16))
-    conn.close()
-    print()
-
+            print()
 def main():
     functions = {1: create_tables,
                  2: add_new_client,
@@ -151,3 +131,4 @@ def main():
 if __name__ == '__main__':
     while True:
         main()
+conn.close()
